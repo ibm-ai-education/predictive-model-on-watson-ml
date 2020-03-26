@@ -60,7 +60,7 @@ var credentials = service.credentials;
 */
 
 
-if (credentials !== null) {
+if (credentials  !== undefined) {
 	// use env.baseURL for calling WML APIs only. Do not use it for IAM auth. Use (https://iam.cloud.ibm.com) for IAM auth instead.
 	env.baseURL = credentials.url;
 	env.apikey = credentials.apikey;
@@ -115,6 +115,7 @@ if (credentials !== null) {
   });
 
 }
+
 
 // Only  URL paths prefixed by /score will be handled by our router
 var rootPath = '/score';
