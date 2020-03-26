@@ -24,7 +24,7 @@
 var path        = require('path');
 var bodyParser 	= require('body-parser');
 var express    	= require('express');
-var request 	= require('request');
+const axios     = require('axios');
 var btoa        = require('btoa');
 
 
@@ -65,48 +65,55 @@ if (credentials !== null) {
 	env.baseURL = credentials.url;
 	env.apikey = credentials.apikey;
 	env.instance_id = credentials.instance_id;
-	var options = {
+	/*var options = {
 		url: 'https://iam.cloud.ibm.com/identity/token',
 		headers: { "Content-Type"  : "application/x-www-form-urlencoded",
 					"Authorization" : "Basic " + btoa('bx:bx') },
-		body: "apikey=" + credentials.apikey + "&grant_type=urn:ibm:params:oauth:grant-type:apikey",
+    responseType: 'json',
+		data: "apikey=" + credentials.apikey + "&grant_type=urn:ibm:params:oauth:grant-type:apikey",
 		method: 'POST'
-	};
-	request(options, function(err, res, body) {
-		if (err) {
-			console.log('Error from GET to retrieve token ' + err);
-			return;
-		}
-		token = JSON.parse(body).access_token;
-		console.log('Got an IAM token');
-		var opts = {
-			url: env.baseURL + '/v3/wml_instances/' + env.instance_id + '/deployments',
-			method: 'GET',
-			headers: {
-				Authorization: 'Bearer ' + token
-			},
-			json: true
-		};
-		request(opts, function(err, res, body) {
-			if (err) {
-				console.log('Error from GET to retrieve scoring href ' + err);
-				return;
-			}
+	};*/
+  var options = {
+    url: "https://iam.cloud.ibm.com/identity/token",
+    headers: { "Content-Type"  : "application/x-www-form-urlencoded",
+          "Authorization" : "Basic " + btoa('bx:bx') },
+    responseType: 'json',
+    data:  `apikey=${encodeURIComponent(credentials.apikey)}&grant_type=${encodeURIComponent('urn:ibm:params:oauth:grant-type:apikey')}`,
+    method: 'POST'
+  };
 
-			for (i = 0; i < body.resources.length; i++) {
-				if (body.resources[i].entity.published_model.name == 'Heart Failure Prediction Model') {
-					scoringHref = body.resources[i].entity.scoring_url;
-					env.published_model_id = body.resources[i].entity.published_model.guid;
-					env.deployment_id = body.resources[i].metadata.guid;
-					console.log('Found Heart Failure Deployment Model');
-					break;
-					}
-			}
-			if (!scoringHref) {
-				console.log('Error: Did not find Heart Failure Deployment Model');
-			}
-		});
-	});
+  axios(options).then (function(response){
+    token = response.data.access_token;
+		console.log('Got an IAM token');
+    var opts = {
+      url: env.baseURL + '/v3/wml_instances/' + env.instance_id + '/deployments',
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + token
+      },
+      responseType: 'json'
+    };
+    axios(opts).then(function(body){
+        for (i = 0; i < body.data.resources.length; i++) {
+          if (body.data.resources[i].entity.published_model.name == 'Heart Failure Prediction Model') {
+            scoringHref = body.data.resources[i].entity.scoring_url;
+            env.published_model_id = body.data.resources[i].entity.published_model.guid;
+            env.deployment_id = body.data.resources[i].metadata.guid;
+            console.log('Found Heart Failure Deployment Model');
+            break;
+            }
+        }
+        if (!scoringHref) {
+          console.log('Error: Did not find Heart Failure Deployment Model');
+        }
+    }).catch(function(error){
+       console.log('Error from GET to retrieve scoring href ' + err);
+    });
+
+  }).catch(function(error){
+    console.log('Error from GET to retrieve token ' + error);
+  });
+
 }
 
 // Only  URL paths prefixed by /score will be handled by our router
@@ -154,33 +161,30 @@ console.log(' ');
 			},
 			// The following query parameters are not used when scoring against a WML Model
 			//qs: { instance_id: env.instance_id, deployment_id: env.deployment_id, published_model_id: env.published_model_id },
-			json: req.body.input
+			data: req.body.input
 		};
-		request(opts, function(err, r, body) {
-			if (err) {
-			   res.status(500).send(err);
-			}
-			else {
-				console.log('Reply from scoring ' + body);
-                res.json(body);
-			}
+		axios(opts).then(function(body){
+       	console.log('Reply from scoring ' + body.data);
+        res.json(body.data);
+    }).catch(function(error){
+      res.status(500).send(error);
+    });
 
-		});
 
-	} catch (e) {
-		console.log('Score exception ' + JSON.stringify(e));
-		var msg = '';
-		if (e instanceof String) {
-			msg = e;
-		} else if (e instanceof Object) {
-		  msg = JSON.stringify(e);
-		}
-		res.status(200);
-		return res.end(JSON.stringify({
-			flag: false,
-			message: msg
-		}));
-	}
+ } catch (e) {
+  		console.log('Score exception ' + JSON.stringify(e));
+  		var msg = '';
+  		if (e instanceof String) {
+  			msg = e;
+  		} else if (e instanceof Object) {
+  		  msg = JSON.stringify(e);
+  		}
+  		res.status(200);
+  		return res.end(JSON.stringify({
+  			flag: false,
+  			message: msg
+  		}));
+ }
 
 	process.on('uncaughtException', function (err) {
     console.log(err);
