@@ -144,7 +144,11 @@ router.get('/', function(req, res) {
 // Calls the PM Service instance
 router.post('/', function(req, res) {
 
-	if (!token || !scoringHref) {
+	if (token === undefined  || scoringHref === undefined) {
+    if (token === undefined)
+       console.log("erroring out b/c token is undefined");
+    if (scoringHref === undefined)
+       console.log("erroring out b/c scoringHre is undefined");
 		res.status(503).send('Service unavailable');
 		return;
 	}
@@ -156,18 +160,19 @@ console.log(' ');
 	try {
 		var opts = {
 			url: scoringHref,
-			method: "POST",
-			headers: {
-			   Authorization: 'Bearer ' + token
-			},
-			// The following query parameters are not used when scoring against a WML Model
-			//qs: { instance_id: env.instance_id, deployment_id: env.deployment_id, published_model_id: env.published_model_id },
-			data: req.body.input
+      headers: {  "Content-Type" : "application/json",
+            "Authorization" : `Bearer ${token}`
+      },
+      responseType: 'json',
+      data:  req.body.input,
+      method: 'POST'
+      //responseType: 'json'
 		};
 		axios(opts).then(function(body){
-       	console.log('Reply from scoring ' + body.data);
+       	console.log('Reply from scoring ' + JSON.stringify(body.data));
         res.json(body.data);
     }).catch(function(error){
+      console.log('Error from scoring ' + JSON.stringify(error));
       res.status(500).send(error);
     });
 
